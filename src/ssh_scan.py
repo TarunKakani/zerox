@@ -3,7 +3,19 @@
 # -- PermitEmptyPasswords
 # -- ssh protocol up to date or sshd service check ?
 
-# also sshd_config
+import subprocess
+
+def check_ssh_service():
+    print("Checking SSH service status...")
+
+    service_name = 'sshd'
+    check_cmd = subprocess.run(['systemctl', 'status', service_name], capture_output=True, text=True)
+
+    if "could not found" in check_cmd.stderr.lower() or check_cmd.returncode == 4:
+        service_name = 'ssh'
+
+    try:
+        active_cmd = subprocess.run([])
 def check_ssh_config(filepath):
     print(f"Scanning {filepath}")
 
@@ -39,11 +51,12 @@ def check_ssh_config(filepath):
     return ssh_settings
 
 
-
 files_to_scan = [
     "/etc/ssh/ssh_config",   # Client configuration (outgoing)
     "/etc/ssh/sshd_config"   # Daemon/Server configuration (incoming)
 ]
+
+check_ssh_service()
 
 for filepath in files_to_scan:
     print(f"\n[*] Starting scan of {filepath}...")
