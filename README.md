@@ -1,13 +1,11 @@
 - PyInstaller or Nuitka to compile the final version into a runnable binary
 
-- Will use textual or rich for making a good tui or cli
-
-- difflib -> Before changing a file, read the current config, 
+- difflib -> Before changing a file, read the current config,
 - generate the string of the new config, and run difflib.unified_diff
 - Display the diff in the terminal (colored Red for removals, Green for additions) and ask Apply this patch? [y/N].
 
 - Async scanning (why not threads? basically async vs multi-thread?)
-- asyncio Don't wait for one check to finish before starting the next. 
+- asyncio Don't wait for one check to finish before starting the next.
 - Launch your "Port Scan" and "File Permission Scan" tasks concurrently. This makes the tool feel snappy.
 
 # Now the main question -> what to scan
@@ -59,7 +57,7 @@
 -- to prevent physical attackers from booting into single user-mode
 
 ## services and software
-- unnessecary serviceson the system/server?
+- unnessecary services on the system/server?
 - check for updates (apt, yum, pacman, dnf)
 
 ## logging & auditing

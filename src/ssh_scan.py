@@ -16,6 +16,8 @@ def check_ssh_service():
 
     try:
         active_cmd = subprocess.run([])
+
+
 def check_ssh_config(filepath):
     print(f"Scanning {filepath}")
 
@@ -45,7 +47,7 @@ def check_ssh_config(filepath):
     except FileNotFoundError as e:
         print(f"Error: File not found {e}")
     except PermissionError:
-        print(f"You do not have appropriate permissions. Run as root/sudo")
+        print("You do not have appropriate permissions. Run as root/sudo")
         return None
     
     return ssh_settings
