@@ -3,9 +3,26 @@
 # - ip forwarding? Check /proc/sys/net/ipv4/ip_forward. Unless the machine is a router, this should be 0.
 # - icmp requests ? Should the server respond to pings? (Often disabled for stealth)
 
-def ports_scan():
-    pass
+import subprocess
 
+def ports_scan():
+    command = ['ss', '-tuln'] # -t : tcp ports, -u : udp ports, -l : listening, -n : numeric ports/IP's no DNS resolution
+    
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode == 0 or result.returncode == 1:
+
+        lines = result.stdout.strip().split('\n')[1:]
+
+        print(f"[INFO] Found {len(lines)} listening sockets. Review for unexpected services.")
+
+        for line in lines[:5]:
+            parts = line.split()
+                
+            print(parts)
+
+            protoc = parts[0]
+            ip_addr = parts[4]
 
 def firewall_rules_scan():
     pass
