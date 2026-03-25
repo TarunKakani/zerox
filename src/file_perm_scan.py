@@ -44,11 +44,52 @@ def critical_files_check(filepath, expected_params_list):
         print(f"File does not exist {filepath}")
     except PermissionError:
         print(f"You do not have permission to access {filepath}. Run as sudo/root.")
-    
+
+# scanning rules
 rules = {"/etc/shadow":['600', '400', '000'],
         "/etc/passwd":['644'],
         "/boot/grub/grub.cfg":['600', '400']}
 
-for filepath, expected_params in rules.items():
-    critical_files_check(filepath, expected_params)
+# for filepath, expected_params in rules.items():
+#     critical_files_check(filepath, expected_params)
 
+
+def critical_writables_check(directories):
+
+    vulnerable_items = []
+
+    for directory in directories:
+        if not os.path.exists(directory):
+            continue # skip if a directory or path does not exists
+
+        for root, dirs, files in os.walk(directory):
+            for item in dirs + files:
+                item_path = os.path.join(root, item) # join both directories and files into one list
+
+                try:
+                    mode = os.stat(item_path).st_mode
+                        
+                        # ??
+                    if mode & stat.S_IWOTH:
+                        vulnerable_items.append(item_path)
+                    
+                except (FileNotFoundError, PermissionError):
+                    continue # skip these files if running without root or sudo
+    
+    return vulnerable_items
+
+# scanning dirs
+# bin vs sbin vs /usr/bin vs /usr/local/bin??
+# what about /dev/shm?
+critical_dirs = ['/etc', '/bin', '/sbin', '/usr/bin', '/usr/sbin', '/usr/local/bin', '/dev/shm']
+
+bad_files = critical_writables_check(critical_dirs)
+
+if bad_files:
+    print(f"[FAIL] Found {len(bad_files)} world-writable items!")
+    for f in bad_files[:10]:
+        print(f"   - {f}")
+    if len(bad_files) > 10:
+        print("   ...(truncated)")
+else:
+    print("[PASS] No world-writable files found in critical directories.")
