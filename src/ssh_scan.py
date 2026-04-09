@@ -5,17 +5,45 @@
 
 import subprocess
 
-def check_ssh_service():
-    print("Checking SSH service status...")
+import subprocess
 
+def check_sshd_service():
+    print("\n[*] Checking SSH service status...")
+    
+    # Try 'sshd' first (RHEL/CentOS/Arch), fallback to 'ssh' (Debian/Ubuntu)
     service_name = 'sshd'
     check_cmd = subprocess.run(['systemctl', 'status', service_name], capture_output=True, text=True)
-
-    if "could not found" in check_cmd.stderr.lower() or check_cmd.returncode == 4:
+    
+    if "could not be found" in check_cmd.stderr.lower() or check_cmd.returncode == 4:
         service_name = 'ssh'
 
     try:
-        active_cmd = subprocess.run([])
+        # Check if it's currently running
+        active_cmd = subprocess.run(['systemctl', 'is-active', service_name], capture_output=True, text=True)
+        is_active = active_cmd.stdout.strip()
+
+        # Check if it's enabled to start on boot
+        enabled_cmd = subprocess.run(['systemctl', 'is-enabled', service_name], capture_output=True, text=True)
+        is_enabled = enabled_cmd.stdout.strip()
+
+        return {
+            'service_name': service_name,
+            'active': is_active,
+            'enabled': is_enabled
+        }
+    except FileNotFoundError:
+        print("[-] Error: 'systemctl' command not found. Is this a systemd OS?")
+        return None
+
+# Run the check
+service_status = check_sshd_service()
+if service_status:
+    print(f"  [INFO] Service Name: {service_status['service_name']}")
+    print(f"  [INFO] Active State: {service_status['active']}")
+    print(f"  [INFO] Boot Enabled: {service_status['enabled']}")
+    
+    if service_status['active'] != 'active':
+        print("  [WARN] SSH service is not currently running.")
 
 
 def check_ssh_config(filepath):
@@ -58,7 +86,6 @@ files_to_scan = [
     "/etc/ssh/sshd_config"   # Daemon/Server configuration (incoming)
 ]
 
-check_ssh_service()
 
 for filepath in files_to_scan:
     print(f"\n[*] Starting scan of {filepath}...")
