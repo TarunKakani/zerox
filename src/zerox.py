@@ -1,1 +1,6 @@
-import 
+import file_perm_scan
+import kernel_scan
+import network_scan
+import services_scan
+import ssh_scan
+import user_management
