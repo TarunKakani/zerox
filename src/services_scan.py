@@ -77,6 +77,5 @@ def check_software_updates():
     else:
         print("[ERROR] Could not detect a supported package manager (APT, DNF, YUM, or Pacman).")
 
-
 check_risky_services()
 check_software_updates()

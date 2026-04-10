@@ -126,8 +126,8 @@ def check_icmp_pings():
                 print("[SAFE] The host is ignoring ICMP pings (Stealth Mode).")
     except FileNotFoundError:
         print("[ERROR] Could not read /proc/sys/net/ipv4/icmp_echo_ignore_all")
-        
+
 ports_scan()
+firewall_rules_scan()
 check_ip_forwarding()
 check_icmp_pings()
-firewall_rules_scan()

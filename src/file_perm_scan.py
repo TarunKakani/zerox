@@ -50,8 +50,8 @@ rules = {"/etc/shadow":['600', '400', '000'],
         "/etc/passwd":['644'],
         "/boot/grub/grub.cfg":['600', '400']}
 
-# for filepath, expected_params in rules.items():
-#     critical_files_check(filepath, expected_params)
+for filepath, expected_params in rules.items():
+    critical_files_check(filepath, expected_params)
 
 
 def critical_writables_check(directories):
@@ -93,3 +93,6 @@ if bad_files:
         print("   ...(truncated)")
 else:
     print("[PASS] No world-writable files found in critical directories.")
+
+find_suid_files()
+

@@ -35,7 +35,6 @@ def check_sshd_service():
         print("[-] Error: 'systemctl' command not found. Is this a systemd OS?")
         return None
 
-# Run the check
 service_status = check_sshd_service()
 if service_status:
     print(f"  [INFO] Service Name: {service_status['service_name']}")
