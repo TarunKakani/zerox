@@ -1,0 +1,21 @@
+2026-04-22 07:59:59,327 INFO [INFO] ========== ZEROX SECURITY AUDIT ==========
+2026-04-22 07:59:59,327 INFO [INFO] Host: infinitycastle
+2026-04-22 07:59:59,327 INFO [INFO] OS: Linux-6.17.0-19-generic-x86_64-with-glibc2.39
+2026-04-22 07:59:59,327 INFO [INFO] Kernel: 6.17.0-19-generic
+2026-04-22 07:59:59,327 INFO [INFO] Effective UID: 1000
+2026-04-22 07:59:59,327 INFO [PASS] Tool available: systemctl
+2026-04-22 07:59:59,327 INFO [PASS] Tool available: ss
+2026-04-22 07:59:59,328 INFO [PASS] Tool available: ufw
+2026-04-22 07:59:59,328 INFO [SKIP] Tool missing: firewall-cmd
+2026-04-22 07:59:59,328 INFO [PASS] Tool available: iptables
+2026-04-22 07:59:59,328 INFO [PASS] Tool available: nft
+2026-04-22 07:59:59,328 INFO [PASS] Tool available: apt
+2026-04-22 07:59:59,328 INFO [SKIP] Tool missing: dnf
+2026-04-22 07:59:59,328 INFO [SKIP] Tool missing: yum
+2026-04-22 07:59:59,328 INFO [SKIP] Tool missing: pacman
+2026-04-22 07:59:59,328 INFO [INFO] Running scan: ssh
+2026-04-22 07:59:59,344 INFO [PASS] SSH service 'sshd' is active and 'alias' on boot.
+2026-04-22 07:59:59,344 INFO [FAIL] PasswordAuthentication is 'yes' (expected 'no') (CIS Benchmark 5.2.4).
+2026-04-22 07:59:59,344 INFO [FAIL] PermitRootLogin is 'prohibit-password' (expected 'no') (CIS Benchmark 5.2.8).
+2026-04-22 07:59:59,345 INFO [PASS] PermitEmptyPasswords is securely set to 'no' (CIS Benchmark 5.2.9).
+2026-04-22 07:59:59,345 INFO [SKIP] /etc/ssh/ssh_config not found or has no explicit SSH directives.

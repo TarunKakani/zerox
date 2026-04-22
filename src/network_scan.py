@@ -1,133 +1,136 @@
-# - ports open and listening with protocol
-# - ufw, firewalld, iptables/nftables (default configs, rules configured, drop and deny)
-# - ip forwarding? Check /proc/sys/net/ipv4/ip_forward. Unless the machine is a router, this should be 0.
-# - icmp requests ? Should the server respond to pings? (Often disabled for stealth)
-
+import shutil
 import subprocess
+from typing import Dict, List
 
-def ports_scan():
-    command = ['ss', '-tuln'] # -t : tcp ports, -u : udp ports, -l : listening, -n : numeric ports/IP's no DNS resolution
-    
-    result = subprocess.run(command, capture_output=True, text=True)
 
-    if result.returncode == 0 or result.returncode == 1:
+def _check(check_id: str, status: str, message: str, cis: str = None, fix: str = None, details: str = None) -> Dict[str, str]:
+    item = {"id": check_id, "status": status, "message": message}
+    if cis:
+        item["cis"] = cis
+    if fix:
+        item["fix"] = fix
+    if details:
+        item["details"] = details
+    return item
 
-        lines = result.stdout.strip().split('\n')[1:]
 
-        print(f"[INFO] Found {len(lines)} listening sockets. Review for unexpected services.")
+def _set_sysctl(logger, key: str, value: str) -> bool:
+    proc = subprocess.run(["sysctl", "-w", f"{key}={value}"], capture_output=True, text=True)
+    if proc.returncode == 0:
+        logger.fixed(f"Applied sysctl {key}={value}.")
+        return True
+    logger.error(f"Failed to apply sysctl {key}={value}: {proc.stderr.strip()}")
+    return False
 
-        for line in lines[:5]:
-            parts = line.split()
-                
-            print(parts)
 
-            protoc = parts[0]
-            local_addr = parts[4]
-            print(f"    - {protoc.upper()} listening on {local_addr}")
-        
-        if len(lines) > 5:
-            print("     ...(truncated)")
-    else:
-        print(f"[ERROR] Failed to run port scan: {result.stderr}")
+def _scan_ports(logger) -> Dict[str, str]:
+    if not shutil.which("ss"):
+        logger.error("'ss' command not found. Cannot perform listening port scan.")
+        return _check("open-ports", "error", "'ss' command not found.")
 
-def firewall_rules_scan():
-    print("\n[*] Checking Firewall Status and Rules...")
-    
-    # 1. Check UFW (Debian/Ubuntu)
-    try:
-        # Replaced capture_output with stdout=subprocess.PIPE
-        ufw = subprocess.run(
-            ['ufw', 'status', 'verbose'], 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.DEVNULL, 
-            text=True
-        )
-        if ufw.returncode == 0: 
+    proc = subprocess.run(["ss", "-tuln"], capture_output=True, text=True)
+    if proc.returncode not in (0, 1):
+        msg = proc.stderr.strip() or "ss command failed."
+        logger.error(f"Port scan failed: {msg}")
+        return _check("open-ports", "error", f"Port scan failed: {msg}")
+
+    lines = proc.stdout.strip().splitlines()[1:]
+    summary = f"Found {len(lines)} listening sockets."
+    logger.info(summary)
+    details = "; ".join(lines[:25]) if lines else None
+    return _check("open-ports", "info", summary, details=details)
+
+
+def _scan_firewall(logger) -> Dict[str, str]:
+    if shutil.which("ufw"):
+        ufw = subprocess.run(["ufw", "status", "verbose"], capture_output=True, text=True)
+        if ufw.returncode == 0:
             if "Status: active" in ufw.stdout:
-                print("[PASS] UFW firewall is ACTIVE.")
-                print("    --- Active UFW Rules & Policies ---")
-                lines = ufw.stdout.strip().split('\n')
-                for line in lines[1:]: 
-                    if line.strip():   
-                        print(f"    {line}")
-            else:
-                print("[FAIL] UFW is installed but INACTIVE.")
-            return 
-    except FileNotFoundError:
-        pass # UFW isn't installed, move to the next check
+                logger.passed("UFW firewall is active.")
+                return _check("firewall", "pass", "UFW firewall is active.")
+            logger.fail("UFW is installed but inactive.")
+            return _check("firewall", "fail", "UFW is installed but inactive.", fix="Run: ufw enable")
 
-    # 2. Check Firewalld (RHEL/CentOS/Fedora)
-    try:
-        firewalld_state = subprocess.run(
-            ['firewall-cmd', '--state'], 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.DEVNULL, 
-            text=True
-        )
-        if firewalld_state.returncode == 0:
-            if "running" in firewalld_state.stdout:
-                print("[PASS] Firewalld is ACTIVE.")
-                print("    --- Active Firewalld Zone Rules ---")
-                firewalld_rules = subprocess.run(
-                    ['firewall-cmd', '--list-all'], 
-                    stdout=subprocess.PIPE, 
-                    text=True
-                ).stdout
-                lines = firewalld_rules.strip().split('\n')
-                for line in lines:
-                    print(f"    {line}")
-            else:
-                print("[FAIL] Firewalld is installed but INACTIVE.")
-            return
-    except FileNotFoundError:
-        pass # Firewalld isn't installed, move to iptables
+    if shutil.which("firewall-cmd"):
+        fw = subprocess.run(["firewall-cmd", "--state"], capture_output=True, text=True)
+        if fw.returncode == 0 and fw.stdout.strip() == "running":
+            logger.passed("Firewalld is running.")
+            return _check("firewall", "pass", "Firewalld is active.")
+        logger.fail("Firewalld is installed but not running.")
+        return _check("firewall", "fail", "Firewalld is installed but inactive.")
 
-    # 3. Fallback to raw iptables
+    if shutil.which("nft"):
+        nft = subprocess.run(["nft", "list", "ruleset"], capture_output=True, text=True)
+        if nft.returncode == 0 and nft.stdout.strip():
+            logger.passed("nftables ruleset detected.")
+            return _check("firewall", "pass", "nftables ruleset detected.")
+
+    if shutil.which("iptables"):
+        ipt = subprocess.run(["iptables", "-L", "-n"], capture_output=True, text=True)
+        if ipt.returncode == 0:
+            logger.warn("Using legacy iptables rules.")
+            return _check("firewall", "warn", "iptables rules detected. Verify default DROP/REJECT policies.")
+
+    logger.fail("No active firewall detected (UFW/Firewalld/nftables/iptables).")
+    return _check(
+        "firewall",
+        "fail",
+        "No active firewall detected.",
+        cis="CIS Benchmark 3.5.x",
+        fix="Enable one host firewall stack and define default deny policies.",
+    )
+
+
+def run_scan(logger, fix: bool = False, **_: Dict[str, str]) -> Dict[str, List[Dict[str, str]]]:
+    checks: List[Dict[str, str]] = []
+    checks.append(_scan_ports(logger))
+    checks.append(_scan_firewall(logger))
+
     try:
-        iptables = subprocess.run(
-            ['iptables', '-L', '-n'], 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.DEVNULL, 
-            text=True
-        )
-        if iptables.returncode == 0:
-            print("[INFO] Raw iptables rules found.")
-            print("    --- Active iptables Rules ---")
-            lines = iptables.stdout.strip().split('\n')
-            for line in lines[:20]:
-                print(f"    {line}")
-            if len(lines) > 20:
-                print("    ...(truncated. Run 'sudo iptables -L -n' to see the full list)")
+        with open("/proc/sys/net/ipv4/ip_forward", "r", encoding="utf-8", errors="ignore") as handle:
+            ip_forward = handle.read().strip()
+        if ip_forward == "0":
+            logger.passed("IPv4 forwarding is disabled.")
+            checks.append(_check("ip-forward", "pass", "IPv4 forwarding is disabled."))
         else:
-             print("[FAIL] No active firewall detected, or script lacks root privileges.")
+            message = "IPv4 forwarding is enabled; disable unless this host is acting as a router."
+            logger.warn(message)
+            checks.append(
+                _check(
+                    "ip-forward",
+                    "warn",
+                    message,
+                    cis="CIS Benchmark 3.1.1",
+                    fix="Run: sysctl -w net.ipv4.ip_forward=0",
+                )
+            )
+            if fix and _set_sysctl(logger, "net.ipv4.ip_forward", "0"):
+                checks.append(_check("ip-forward-fixed", "fixed", "Set net.ipv4.ip_forward=0."))
     except FileNotFoundError:
-        print("[FAIL] iptables command not found. System may be severely misconfigured.")
+        logger.error("Could not read /proc/sys/net/ipv4/ip_forward.")
+        checks.append(_check("ip-forward", "error", "Could not read /proc/sys/net/ipv4/ip_forward."))
 
-def check_ip_forwarding():
     try:
-        with open("/proc/sys/net/ipv4/ip_forward", 'r') as f:
-            status = f.read().strip()
-
-            if status == '0':
-                print("[SAFE] ipv4 forwarding is off.")
-            else:
-                print("[WARN] ipv4 forwarding is on and set to a value (1). Disable unless the server is a dedicated router")
+        with open("/proc/sys/net/ipv4/icmp_echo_ignore_all", "r", encoding="utf-8", errors="ignore") as handle:
+            ping_mode = handle.read().strip()
+        if ping_mode == "1":
+            logger.passed("ICMP echo requests are ignored.")
+            checks.append(_check("icmp-echo", "pass", "Host ignores ICMP echo requests."))
+        else:
+            message = "Host responds to ICMP echo requests."
+            logger.warn(message)
+            checks.append(
+                _check(
+                    "icmp-echo",
+                    "warn",
+                    message,
+                    fix="Run: sysctl -w net.ipv4.icmp_echo_ignore_all=1 (if stealth mode is desired).",
+                )
+            )
+            if fix and _set_sysctl(logger, "net.ipv4.icmp_echo_ignore_all", "1"):
+                checks.append(_check("icmp-echo-fixed", "fixed", "Set net.ipv4.icmp_echo_ignore_all=1."))
     except FileNotFoundError:
-        print("[ERROR] Could not read /proc/sys/net/ipv4/ip_forward")
+        logger.error("Could not read /proc/sys/net/ipv4/icmp_echo_ignore_all.")
+        checks.append(_check("icmp-echo", "error", "Could not read /proc/sys/net/ipv4/icmp_echo_ignore_all."))
 
-def check_icmp_pings():
-    try:
-        with open("/proc/sys/net/ipv4/icmp_echo_ignore_all", 'r') as f:
-            status = f.read().strip()
-
-            if status == '0':
-                print("[WARN] The host responds to ICMP pings. Consider disabling for stealth.")
-            else:
-                print("[SAFE] The host is ignoring ICMP pings (Stealth Mode).")
-    except FileNotFoundError:
-        print("[ERROR] Could not read /proc/sys/net/ipv4/icmp_echo_ignore_all")
-
-ports_scan()
-firewall_rules_scan()
-check_ip_forwarding()
-check_icmp_pings()
+    return {"name": "network", "checks": checks}
