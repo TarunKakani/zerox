@@ -10,22 +10,38 @@ import socket
 from datetime import datetime, timezone
 from typing import Dict, List
 
-from audit_logger import AuditLogger
-import file_perm_scan
-import kernel_scan
-import network_scan
-import services_scan
-import ssh_scan
-import user_management
+from modules.audit_logger import AuditLogger
+import modules.auth_logs_scan as auth_logs_scan
+import modules.baseline_scan as baseline_scan
+import modules.file_perm_scan as file_perm_scan
+import modules.kernel_modules_scan as kernel_modules_scan
+import modules.kernel_scan as kernel_scan
+import modules.network_scan as network_scan
+import modules.persistence_scan as persistence_scan
+import modules.scheduler_scan as scheduler_scan
+import modules.services_scan as services_scan
+import modules.ssh_scan as ssh_scan
+import modules.sudoers_scan as sudoers_scan
+import modules.surface_scan as surface_scan
+import modules.tls_scan as tls_scan
+import modules.user_management as user_management
 
 
 SCAN_RUNNERS = {
+    "authlogs": auth_logs_scan.run_scan,
+    "baseline": baseline_scan.run_scan,
+    "filesystem": file_perm_scan.run_scan,
     "ssh": ssh_scan.run_scan,
     "identity": user_management.run_scan,
-    "filesystem": file_perm_scan.run_scan,
-    "network": network_scan.run_scan,
     "kernel": kernel_scan.run_scan,
+    "modules": kernel_modules_scan.run_scan,
+    "network": network_scan.run_scan,
+    "persistence": persistence_scan.run_scan,
+    "scheduler": scheduler_scan.run_scan,
     "services": services_scan.run_scan,
+    "sudoers": sudoers_scan.run_scan,
+    "surface": surface_scan.run_scan,
+    "tls": tls_scan.run_scan,
 }
 
 
@@ -53,6 +69,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--format", choices=["text", "json", "csv"], default="text", help="Report output format.")
     parser.add_argument("--output", help="Path to save report output.")
+    parser.add_argument("--policy", default="zerox_policy.json", help="Path to policy JSON (allowlists/rules).")
+    parser.add_argument("--baseline-file", default="zerox_baseline.json", help="Path to baseline JSON file.")
+    parser.add_argument("--init-baseline", action="store_true", help="Create/refresh baseline file from current system state.")
     parser.add_argument("--fix", action="store_true", help="Apply safe auto-fixes where supported.")
     parser.add_argument("--ssh-only", action="store_true", help="Run only SSH scan.")
     parser.add_argument("--identity-only", action="store_true", help="Run only identity/IAM scan.")
@@ -174,6 +193,23 @@ def _serialize_text(report: Dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _load_policy(policy_path: str, logger: AuditLogger) -> Dict[str, object]:
+    if not os.path.exists(policy_path):
+        logger.skip(f"Policy file not found: {policy_path}")
+        return {}
+    try:
+        with open(policy_path, "r", encoding="utf-8") as handle:
+            policy = json.load(handle)
+    except json.JSONDecodeError:
+        logger.error(f"Policy file is not valid JSON: {policy_path}")
+        return {}
+    if not isinstance(policy, dict):
+        logger.error(f"Policy file root must be a JSON object: {policy_path}")
+        return {}
+    logger.info(f"Loaded policy from {policy_path}")
+    return policy
+
+
 def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
@@ -209,7 +245,11 @@ def main() -> int:
     if not selected_scans:
         parser.error("No scans selected after applying include/exclude filters.")
 
+    if args.init_baseline:
+        selected_scans.add("baseline")
+
     logger = AuditLogger(quiet=args.quiet, silent=(args.format != "text"))
+    policy = _load_policy(args.policy, logger)
     all_scans: List[Dict[str, List[Dict[str, str]]]] = []
 
     all_scans.append(_collect_system_info(logger))
@@ -217,10 +257,17 @@ def main() -> int:
     for scan_name in sorted(selected_scans):
         if args.format == "text":
             logger.info("")
-            logger.info(f"=== {scan_name.upper()} SCAN ===")
+            logger.info(f"========== {scan_name.upper()} SCAN ==========")
         logger.info(f"Running scan: {scan_name}")
         runner = SCAN_RUNNERS[scan_name]
-        result = runner(logger=logger, fix=args.fix, exclude_services=args.exclude)
+        result = runner(
+            logger=logger,
+            fix=args.fix,
+            exclude_services=args.exclude,
+            policy=policy,
+            baseline_path=args.baseline_file,
+            init_baseline=args.init_baseline,
+        )
         all_scans.append(result)
 
     summary = _summarize(all_scans)
@@ -232,6 +279,8 @@ def main() -> int:
         "scans": all_scans,
         "suggestions": suggestions,
         "log_file": logger.log_path,
+        "policy_file": args.policy,
+        "baseline_file": args.baseline_file,
     }
 
     if args.format == "json":
