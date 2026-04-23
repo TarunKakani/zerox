@@ -255,12 +255,3 @@ pyinstaller --onefile src/zerox.py --name zerox
 Binary output appears under `dist/zerox`.
 
 ---
-
-## Presentation Narrative (ready-to-use)
-
-Use this flow for demos:
-1. **Problem:** manual host hardening checks are inconsistent and slow.
-2. **Solution:** Zerox unifies static and operational Linux security checks in one CLI.
-3. **Differentiator:** policy-aware allowlisting + baseline drift + remediation hints.
-4. **Operational value:** JSON/CSV reporting for fleet workflows.
-5. **Roadmap-ready architecture:** modular scan engine with isolated scan units.
