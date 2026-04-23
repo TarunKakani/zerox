@@ -40,10 +40,23 @@ class AuditLogger:
         self.logger.info("[%s] %s", label, message)
         if self.silent or not console_allowed:
             return
+        if not message:
+            print("")
+            return
         if self.use_color and label in self.COLORS:
             print(f"{self.COLORS[label]}[{label}] {message}{self.RESET}")
         else:
             print(f"[{label}] {message}")
+
+    def section(self, title: str) -> None:
+        self.logger.info("[SECTION] %s", title)
+        if self.silent or self.quiet:
+            return
+        print("")
+        if self.use_color:
+            print(f"{self.COLORS['INFO']}{title}{self.RESET}")
+        else:
+            print(title)
 
     def info(self, message: str) -> None:
         self._emit("INFO", message, not self.quiet)

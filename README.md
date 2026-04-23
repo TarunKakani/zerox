@@ -181,6 +181,15 @@ python3 src/zerox.py --full --format csv --output report.csv
 sudo python3 src/zerox.py --full --fix
 ```
 
+### Intentionally vulnerable test profile (VM only)
+
+```bash
+sudo bash scripts/make_vm_vulnerable.sh
+python3 src/zerox.py --full --policy ./zerox_policy.json
+```
+
+This script intentionally weakens system settings so scans produce warning/failure findings for validation and demo workflows.
+
 ---
 
 ## Policy File (`zerox_policy.json`)

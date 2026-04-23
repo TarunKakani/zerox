@@ -89,7 +89,7 @@ def _collect_system_info(logger: AuditLogger) -> Dict[str, List[Dict[str, str]]]
     kernel_version = platform.release()
     uid = os.geteuid() if hasattr(os, "geteuid") else -1
 
-    logger.info("========== ZEROX SECURITY AUDIT ==========")
+    logger.section("========== ZEROX SECURITY AUDIT ==========")
     logger.info(f"Host: {hostname}")
     logger.info(f"OS: {os_name}")
     logger.info(f"Kernel: {kernel_version}")
@@ -256,8 +256,7 @@ def main() -> int:
 
     for scan_name in sorted(selected_scans):
         if args.format == "text":
-            logger.info("")
-            logger.info(f"========== {scan_name.upper()} SCAN ==========")
+            logger.section(f"========== {scan_name.upper()} SCAN ==========")
         logger.info(f"Running scan: {scan_name}")
         runner = SCAN_RUNNERS[scan_name]
         result = runner(
